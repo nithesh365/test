@@ -3,6 +3,7 @@ from transformers import BlipProcessor, BlipForConditionalGeneration
 from PIL import Image
 import time
 from config import config
+from utils.style_rewriter import get_style_rewriter
 
 class CaptionGenerator:
     def __init__(self):
@@ -15,7 +16,7 @@ class CaptionGenerator:
     
     def generate_caption(self, image: Image.Image, style: str = "factual"):
         """
-        Generate caption for an image with optional style
+        Generate caption for an image with style using BLIP + Gemini
         
         Args:
             image: PIL Image object
@@ -26,13 +27,10 @@ class CaptionGenerator:
         """
         start_time = time.time()
         
-        # Get style prompt
-        text_prompt = config.STYLE_PROMPTS.get(style, config.STYLE_PROMPTS["factual"])
-        
-        # Process image
+        # Step 1: Generate base caption with BLIP (no style prompt)
+        blip_start = time.time()
         inputs = self.processor(
             images=image,
-            text=text_prompt,
             return_tensors="pt"
         ).to(config.DEVICE)
         
@@ -48,27 +46,44 @@ class CaptionGenerator:
                 output_scores=True
             )
         
-        # Decode caption
-        caption = self.processor.decode(
+        # Decode base caption
+        base_caption = self.processor.decode(
             output.sequences[0],
             skip_special_tokens=True
         )
         
-        # Calculate confidence (average of token scores)
+        # Calculate confidence
         if hasattr(output, 'sequences_scores'):
             confidence = float(torch.exp(output.sequences_scores[0]))
         else:
-            # Fallback confidence calculation
             scores = torch.stack(output.scores, dim=1)
             probs = torch.softmax(scores, dim=-1)
             confidence = float(probs.max(dim=-1).values.mean())
         
-        processing_time = round(time.time() - start_time, 3)
+        blip_time = round(time.time() - blip_start, 3)
+        
+        # Step 2: Rewrite caption with Gemini for different styles
+        gemini_time = 0
+        final_caption = base_caption
+        
+        # Only use Gemini if style is not factual
+        if style != "factual":
+            try:
+                rewriter = get_style_rewriter()
+                final_caption, gemini_time = rewriter.rewrite_caption(base_caption, style)
+            except Exception as e:
+                print(f"Style rewriting failed, using base caption: {e}")
+                final_caption = base_caption
+        
+        total_time = round(time.time() - start_time, 3)
         
         return {
-            "caption": caption,
+            "caption": final_caption,
+            "base_caption": base_caption,  # Include for comparison
             "confidence": round(confidence, 4),
-            "processing_time": processing_time,
+            "processing_time": total_time,
+            "blip_time": blip_time,
+            "gemini_time": gemini_time,
             "style": style
         }
 
