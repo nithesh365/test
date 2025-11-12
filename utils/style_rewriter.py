@@ -1,72 +1,56 @@
-import google.generativeai as genai
+# pip install groq
+
+import os
+from groq import Groq
 from config import config
 import time
 
 class StyleRewriter:
     def __init__(self):
-        """Initialize Gemini API"""
-        if not config.GEMINI_API_KEY:
-            raise ValueError("GEMINI_API_KEY not found in .env file")
+        """Initialize Groq API"""
+        if not hasattr(config, 'GROQ_API_KEY') or not config.GROQ_API_KEY:
+            raise ValueError("GROQ_API_KEY not found in .env file")
         
-        genai.configure(api_key=config.GEMINI_API_KEY)
-        self.model = genai.GenerativeModel(config.GEMINI_MODEL)
-        print("Gemini API initialized successfully!")
+        self.client = Groq(api_key=config.GROQ_API_KEY)
+        print("Groq API initialized successfully!")
     
     def rewrite_caption(self, base_caption: str, style: str) -> tuple:
-        """
-        Rewrite caption in specified style using Gemini
-        
-        Args:
-            base_caption: Original caption from BLIP
-            style: Desired style (factual, poetic, humorous, cinematic, simple)
-        
-        Returns:
-            tuple: (rewritten_caption, processing_time)
-        """
         start_time = time.time()
         
-        # Get style instruction
-        instruction = config.STYLE_INSTRUCTIONS.get(
-            style, 
-            config.STYLE_INSTRUCTIONS["factual"]
-        )
+        if not base_caption or not base_caption.strip():
+            return base_caption, 0.0
         
-        # Create prompt for Gemini
-        prompt = f"""{instruction}
-
-Original caption: "{base_caption}"
-
-Rewritten caption:"""
+        if not style or not style.strip():
+            style = "creative"
+        
+        prompt = f"Rewrite this image caption in a {style} style. Give ONLY the rewritten caption, nothing else.\n\nOriginal: {base_caption}\n\nRewritten:"
+        
+        rewritten = base_caption
         
         try:
-            # Generate with Gemini
-            response = self.model.generate_content(
-                prompt,
-                generation_config={
-                    "temperature": 0.7,
-                    "max_output_tokens": 100,
-                }
+            response = self.client.chat.completions.create(
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+                model="llama-3.3-70b-versatile",  # Fast and high quality
+                temperature=0.7,
+                max_tokens=150,
             )
             
-            rewritten = response.text.strip()
+            rewritten = response.choices[0].message.content.strip()
             
-            # Remove quotes if Gemini added them
+            # Clean up
             if rewritten.startswith('"') and rewritten.endswith('"'):
                 rewritten = rewritten[1:-1]
-            if rewritten.startswith("'") and rewritten.endswith("'"):
-                rewritten = rewritten[1:-1]
             
-            processing_time = round(time.time() - start_time, 3)
+            print(f"✅ Groq: {rewritten[:80]}...")
             
-            return rewritten, processing_time
-        
         except Exception as e:
-            print(f"Gemini API error: {str(e)}")
-            # Fallback to original caption if Gemini fails
-            processing_time = round(time.time() - start_time, 3)
-            return base_caption, processing_time
+            print(f"❌ Groq error: {e}")
+        
+        processing_time = round(time.time() - start_time, 3)
+        return rewritten, processing_time
 
-# Global instance
 style_rewriter = None
 
 def get_style_rewriter():
