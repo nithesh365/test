@@ -4,6 +4,12 @@ from api.routes import router
 from models.caption_generator import get_caption_model
 from config import config
 import uvicorn
+from pyngrok import ngrok
+
+from pyngrok import ngrok
+
+# Replace with your ngrok token from https://dashboard.ngrok.com
+ngrok.set_auth_token("35NvykFtyHSG081DgtoMRX2AfWI_DvSATexpLzC1c5SxBQYY")
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -38,6 +44,9 @@ async def root():
         "docs": "/docs",
         "health": "/api/health"
     }
+
+public_url = ngrok.connect(config.PORT)
+print(public_url)
 
 if __name__ == "__main__":
     uvicorn.run(
