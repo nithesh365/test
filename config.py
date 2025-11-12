@@ -10,9 +10,8 @@ class Config:
     MODEL_NAME = "Salesforce/blip-image-captioning-large"
     DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
     
-    # Gemini settings
-    GEMINI_API_KEY = "apikey"
-    GEMINI_MODEL = "gemini-1.5-flash"
+    GROQ_API_KEY="apikey"
+
     
     # API settings
     MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB
