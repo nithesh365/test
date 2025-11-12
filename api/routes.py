@@ -23,7 +23,7 @@ async def generate_caption(
     """
     
     # Validate style
-    if style not in config.STYLE_PROMPTS:
+    if style not in config.STYLE_INSTRUCTIONS:
         raise HTTPException(
             status_code=400,
             detail=f"Invalid style. Choose from: {list(config.STYLE_PROMPTS.keys())}"
